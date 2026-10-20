@@ -1,0 +1,41 @@
+# Fault scenarios of the study. Windows are given as fractions of the measured run so that the same scenario
+# scales with --duration (300 s: window 0.2-0.6 = t=60 s..180 s, leaving 120 s of recovery at the end).
+#
+# Parameters follow the base paper (Ahmed et al. 2026, section 4.2):
+#   - "3 s delay to 50 % of the requests targeting a service"  (4.2.1)
+#   - HTTP 500 at 30 % (4.2.2 uses 30 % errors plus a 500 ms delay on 20 % of traffic)
+# Fault *targets* are our choice (the base paper does not map faults to named services): payment-service is the
+# "one downstream" for single-fault scenarios; the mixed scenario adds errors on inventory-service.
+#
+# Rule fields are those of the service's POST /admin/fault (see FaultRule); startFrac/endFrac are converted to
+# startOffsetMs/endOffsetMs by the harness. Events are executed by the harness at at_frac * duration.
+
+baseline:
+  description: No faults (control)
+  faults: {}
+
+delay:
+  description: "3 s delay on 50 % of payment-service requests (base paper 4.2.1), window 20-60 % of the run"
+  faults:
+    payment-service:
+      - {id: delay3s, type: DELAY, delayMs: 3000, probability: 0.5, startFrac: 0.2, endFrac: 0.6}
+
+errors:
+  description: "HTTP 500 on 30 % of payment-service requests, window 20-60 % of the run"
+  faults:
+    payment-service:
+      - {id: err500, type: ERROR, status: 500, probability: 0.3, startFrac: 0.2, endFrac: 0.6}
+
+mixed:
+  description: "3 s delay on 50 % of payment-service requests AND HTTP 500 on 30 % of inventory-service requests, same window"
+  faults:
+    payment-service:
+      - {id: delay3s, type: DELAY, delayMs: 3000, probability: 0.5, startFrac: 0.2, endFrac: 0.6}
+    inventory-service:
+      - {id: err500, type: ERROR, status: 500, probability: 0.3, startFrac: 0.2, endFrac: 0.6}
+
+coldstart:
+  description: "payment-service is killed and restarted at 40 % of the run (cold JVM, connection errors while it is down)"
+  faults: {}
+  events:
+    - {at_frac: 0.4, action: restart, service: payment-service}

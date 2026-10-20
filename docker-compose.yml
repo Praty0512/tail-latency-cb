@@ -1,0 +1,73 @@
+# Three-service testbed.  Usage:  docker compose up --build -d
+# CPU/memory limits keep runs comparable across machines; override with SERVICE_CPUS / SERVICE_MEM.
+name: tlcb
+
+x-service-defaults: &svc
+  restart: "no"
+  cpus: ${SERVICE_CPUS:-1.0}
+  mem_limit: ${SERVICE_MEM:-768m}
+  networks: [tlcb]
+
+services:
+  inventory-service:
+    <<: *svc
+    build:
+      context: .
+      dockerfile: inventory-service/Dockerfile
+    image: tlcb/inventory-service:1.0.0
+    container_name: tlcb-inventory
+    ports: ["8081:8081"]
+    environment:
+      SERVER_PORT: "8081"
+    healthcheck:
+      # bash is required for /dev/tcp (CMD-SHELL would use dash on the Ubuntu-based image)
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET /health HTTP/1.0\r\n\r\n' >&3 && grep -q 200 <&3"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  payment-service:
+    <<: *svc
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    image: tlcb/payment-service:1.0.0
+    container_name: tlcb-payment
+    ports: ["8082:8082"]
+    environment:
+      SERVER_PORT: "8082"
+    healthcheck:
+      # bash is required for /dev/tcp (CMD-SHELL would use dash on the Ubuntu-based image)
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8082 && printf 'GET /health HTTP/1.0\r\n\r\n' >&3 && grep -q 200 <&3"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  order-service:
+    <<: *svc
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    image: tlcb/order-service:1.0.0
+    container_name: tlcb-order
+    ports: ["8080:8080"]
+    environment:
+      SERVER_PORT: "8080"
+      INVENTORY_URL: http://inventory-service:8081
+      PAYMENT_URL: http://payment-service:8082
+    depends_on:
+      inventory-service: {condition: service_healthy}
+      payment-service: {condition: service_healthy}
+    healthcheck:
+      # bash is required for /dev/tcp (CMD-SHELL would use dash on the Ubuntu-based image)
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\r\n\r\n' >&3 && grep -q 200 <&3"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+networks:
+  tlcb:
+    driver: bridge

@@ -1,0 +1,8 @@
+# Harness (load generator, orchestration) and analysis. Tested with Python 3.9.
+aiohttp>=3.8
+numpy>=1.21
+pandas>=1.4
+scipy>=1.8
+matplotlib>=3.5
+PyYAML>=6.0
+pytest>=7.0
